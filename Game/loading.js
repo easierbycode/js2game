@@ -44,7 +44,14 @@ export function loadGame() {
     pixeloid_small.print(380.0, 350.0, "Map", Color.new(64, 64, 64));
     Screen.flip();
 
-    map = readJSON("Levels/test.json");
+  map = readJSON("Levels/test.json");
+
+  // Convert stored texture paths to Image objects (backwards compatibility)
+  for (var i = 0; i < map.length; i++) {
+    if (typeof map[i].tex === 'string') {
+      map[i].tex = new Image(map[i].tex);
+    }
+  }
 
     bg1 = new Image("Map/Background/1.png");
     bg2 = new Image("Map/Background/2.png");

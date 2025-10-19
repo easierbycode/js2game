@@ -15,12 +15,30 @@ var square_y = 0;
 var tile_ed_size = 10.0;
 var cur_sprite = 0;
 
-var framelist = os.readdir("Map/Tiles");
-var tilelist = new Array(framelist.length);
+var framelist = [];
+try{
+    framelist = os.readdir("Map/Tiles") || [];
+}catch(e){
+    framelist = [];
+}
+var tilelist = [];
+var tilepaths = [];
 
 for (var i = 0; i < framelist.length; i++) {
-    tilelist[i] = new Image("Map/Tiles" + "/" + "Tile_" + (i+1) + ".png");
+    var path = "Map/Tiles" + "/" + "Tile_" + (i+1) + ".png";
+    try{
+        tilelist[i] = new Image(path);
+    }catch(e){
+        tilelist[i] = null;
+    }
+    tilepaths[i] = path;
 };
+
+// Ensure at least one placeholder entry so UI code has something to reference
+if(tilepaths.length === 0){
+    tilepaths.push("");
+    tilelist.push(null);
+}
 
 function updateLevelEditorPads(){
     var pad = Pads.get();
@@ -44,12 +62,18 @@ function updateLevelEditorPads(){
         cur_sprite--;
     };
 
-    if(pad.justPressed(Pads.R1) && cur_sprite < tilelist.length){
+    var maxSprite = Math.max(0, tilelist.length - 1);
+    if(pad.justPressed(Pads.R1) && cur_sprite < maxSprite){
         cur_sprite++;
     };
 
+    // clamp just in case
+    if(cur_sprite < 0) cur_sprite = 0;
+    if(cur_sprite > maxSprite) cur_sprite = maxSprite;
+
     if(pad.justPressed(Pads.CROSS)){
-        newMapTile(tilelist[cur_sprite], new Vector2(square_x, square_y));
+        // store the file path (string) rather than the Image object so JSON is serializable
+        newMapTile(tilepaths[cur_sprite], new Vector2(square_x, square_y));
     };
 }
 
@@ -61,11 +85,22 @@ function levelEditor_create(){
         Draw.rect(450.0, 0.0, 190.0, 448.0, Color.new(0,0,0));
 
         pixeloid_small.print(460.0,  15.0, "X - Add tile", Color.new(128,128,128));
-        pixeloid_small.print(460.0,  45.0, "Δ - Return", Color.new(128,128,128));
+        pixeloid_small.print(460.0,  45.0, "Triangle - Return", Color.new(128,128,128));
         pixeloid_small.print(460.0,  75.0, "D-Pad - Move", Color.new(128,128,128));
         pixeloid_small.print(460.0, 105.0, "R1/L1 - Change \nsprite", Color.new(128,128,128));
 
-        Draw.rect(470.0, 250.0, 150.0, 150.0, tilelist[cur_sprite]);
+        // Guard the preview draw in case tilelist[cur_sprite] is missing
+        try{
+            if(tilelist[cur_sprite]){
+                Draw.rect(470.0, 250.0, 150.0, 150.0, tilelist[cur_sprite]);
+            } else {
+                // draw a placeholder box
+                Draw.rect(470.0, 250.0, 150.0, 150.0, Color.new(64,64,64));
+            }
+        }catch(e){
+            // If Draw or Image throws, draw a simple box to avoid native crashes
+            Draw.rect(470.0, 250.0, 150.0, 150.0, Color.new(64,64,64));
+        }
 
         for (var i = 0; i < level.length; i++) {
             Draw.rect(level[i].tile.x*tile_ed_size, level[i].tile.y*tile_ed_size, tile_ed_size, tile_ed_size, Color.new(0,255,0));
@@ -75,8 +110,13 @@ function levelEditor_create(){
         Draw.rect(square_x*tile_ed_size, square_y*tile_ed_size, tile_ed_size, tile_ed_size, Color.new(255,0,0));
 
         if(pad.justPressed(Pads.START)){
-            writeJSON("Levels/test.json", level);
-            sw_leveled = idle;
+            try{
+                writeJSON("Levels/test.json", level);
+                sw_leveled = idle;
+            }catch(e){
+                // show a small error on screen instead of freezing
+                pixeloid_small.print(460.0, 200.0, "Save error: " + (e && e.message? e.message : String(e)), Color.new(255,0,0));
+            }
         };
         
         if(pad.justPressed(Pads.TRIANGLE)){
