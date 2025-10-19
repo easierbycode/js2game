@@ -38,7 +38,7 @@ function processPads() {
     }
 
     if(pad.pressed(Pads.LEFT) || pad.lx < -100){
-        if(!oldpad.pressed(Pads.PAD_LEFT) || oldpad.lx > 100){
+        if(!oldpad.pressed(Pads.LEFT) || oldpad.lx > 100){
             char_side = 1;
         };
         char.x -= char_speed[move_state-1];

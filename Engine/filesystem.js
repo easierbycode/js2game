@@ -1,8 +1,22 @@
 function writeJSON(path, object){
-    var fd = System.openFile(path, FCREATE);
-    var content = JSON.stringify(object);
-    System.writeFile(fd, content, content.length);
-    System.closeFile(fd);
+    const content = JSON.stringify(object);
+    const err = { errno: 0 };
+    const file = std.open(path, "w", err);
+    if(!file){
+        // attempt fallback to System if std.open isn't available
+        try{
+            var fd = System.openFile(path, FCREATE);
+            System.writeFile(fd, content, content.length);
+            System.closeFile(fd);
+            return;
+        }catch(e){
+            throw new Error("Failed to open file for writing: " + path + " (std.open and fallback failed)");
+        }
+    }
+
+    // Use puts to write UTF-8 string (adds no extra newline)
+    file.puts(content);
+    file.close();
 };
 
 export function readJSON(path){

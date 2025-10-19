@@ -53,6 +53,7 @@ import { theGame } from "Game/thegame.js";
 // dofile("Game/startmenu.js");
 import { startMenu } from "Game/startmenu.js";
 // dofile("Game/leveleditor.js");
+import { levelEditor } from "Game/leveleditor.js";
 
 var font_size = {width:20.0, height:20.0}; 
 
