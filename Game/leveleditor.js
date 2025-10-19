@@ -103,11 +103,29 @@ function levelEditor_create(){
         }
 
         for (var i = 0; i < level.length; i++) {
-            Draw.rect(level[i].tile.x*tile_ed_size, level[i].tile.y*tile_ed_size, tile_ed_size, tile_ed_size, Color.new(0,255,0));
-            
+            var tile = level[i];
+            var tex_path = tile.tex;
+            var image = null;
+            if(tex_path){
+                var tex_idx = tilepaths.indexOf(tex_path);
+                if(tex_idx !== -1){
+                    image = tilelist[tex_idx];
+                }
+            }
+
+            if(image){
+                Draw.rect(tile.tile.x*tile_ed_size, tile.tile.y*tile_ed_size, tile_ed_size, tile_ed_size, image);
+            }else{
+                Draw.rect(tile.tile.x*tile_ed_size, tile.tile.y*tile_ed_size, tile_ed_size, tile_ed_size, Color.new(0,255,0));
+            }
         };
 
-        Draw.rect(square_x*tile_ed_size, square_y*tile_ed_size, tile_ed_size, tile_ed_size, Color.new(255,0,0));
+        var cursor_img = tilelist[cur_sprite];
+        if(cursor_img){
+            Draw.rect(square_x*tile_ed_size, square_y*tile_ed_size, tile_ed_size, tile_ed_size, cursor_img);
+        } else {
+            Draw.rect(square_x*tile_ed_size, square_y*tile_ed_size, tile_ed_size, tile_ed_size, Color.new(255,0,0));
+        }
 
         if(pad.justPressed(Pads.START)){
             try{
