@@ -25,7 +25,7 @@ function processPads() {
     }
 
     if(pad.pressed(Pads.RIGHT) || pad.lx > 100){
-        if(!Pads.check(oldpad, PAD_RIGHT) || oldpad.lx < -100){
+        if(!oldpad.pressed(Pads.RIGHT) || oldpad.lx < -100){
             char_side = 0;
         };
         char.x += char_speed[move_state-1];
@@ -38,7 +38,7 @@ function processPads() {
     }
 
     if(pad.pressed(Pads.LEFT) || pad.lx < -100){
-        if(!Pads.check(oldpad, PAD_LEFT) || oldpad.lx > 100){
+        if(!oldpad.pressed(Pads.PAD_LEFT) || oldpad.lx > 100){
             char_side = 1;
         };
         char.x -= char_speed[move_state-1];
