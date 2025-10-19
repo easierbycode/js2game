@@ -1,4 +1,4 @@
-function writeJSON(path, object){
+export function writeJSON(path, object){
     const content = JSON.stringify(object);
     const err = { errno: 0 };
     const file = std.open(path, "w", err);

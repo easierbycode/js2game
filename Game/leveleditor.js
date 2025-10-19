@@ -1,5 +1,9 @@
 
+import { MapTile, Vector2 } from "Engine/obj_types.js";
+import { writeJSON } from "Engine/filesystem.js";
+
 var level = [];
+
 
 function newMapTile(texture, grid){
     var slot = new MapTile(texture, new Vector2(grid.x*tile_size, grid.y*tile_size), new Vector2(grid.x, grid.y));
