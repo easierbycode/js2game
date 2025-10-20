@@ -25,7 +25,7 @@ var pad = Pads.get();
 globalThis.oldpad = oldpad;
 globalThis.pad = pad;
 
-const start = 0;
+globalThis.start = 0;
 const loading = 1;
 const running = 2;
 const level_ed = 3;
