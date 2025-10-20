@@ -8,6 +8,7 @@ var level = [];
 function newMapTile(texture, grid){
     var slot = new MapTile(texture, new Vector2(grid.x*tile_size, grid.y*tile_size), new Vector2(grid.x, grid.y));
     level.push(slot);
+    logTile("placed tile " + texture + " at grid (" + grid.x + "," + grid.y + ")");
 }
 
 var square_x = 0;
@@ -15,44 +16,215 @@ var square_y = 0;
 var tile_ed_size = 10.0;
 var cur_sprite = 0;
 
-// Get a list of all files in the directory
-var framelist = [];
-try{
-    // Filter out directories and only get the file names
-    framelist = os.readdir("Map/Tiles") || [];
-    framelist = framelist.filter(f => f.slice(-1) !== '/');
-}catch(e){
-    // Could be that the directory doesn't exist, which is fine
-    framelist = [];
+var tileLogPrefix = "[LevelEditor]";
+var loggedTileMessages = Object.create(null);
+
+function logTile(message){
+    console.log(tileLogPrefix + " " + message);
 }
 
-// Sort the files numerically based on the name
-// (e.g., "Tile_1.png", "Tile_2.png", ... "Tile_10.png")
-try{
-    framelist.sort(function(a,b){
-        var a_num = parseInt(a.split("_")[1].split(".")[0]);
-        var b_num = parseInt(b.split("_")[1].split(".")[0]);
-        return a_num - b_num;
-    });
-}catch(e){
-    // If the files are not named correctly this will probably fail
-    // In that case, just sort alphabetically
-    framelist.sort();
+function logTileOnce(key, message){
+    if(loggedTileMessages[key]){
+        return;
+    }
+    loggedTileMessages[key] = true;
+    logTile(message);
 }
 
+function isImageReady(image, identifier){
+    if(!image){
+        return false;
+    }
+
+    if(typeof image.ready === "function"){
+        try{
+            var state = image.ready();
+            if(state === false){
+                if(identifier){
+                    logTileOnce("imgPending:" + identifier, "waiting for image to load: " + identifier);
+                }
+                return false;
+            }
+        }catch(e){
+            if(identifier){
+                logTileOnce("imgReadyErr:" + identifier, "image.ready() failed for " + identifier + ": " + (e && e.message? e.message : String(e)));
+            }
+        }
+    }
+
+    return true;
+}
+
+function drawImageScaled(image, x, y, width, height, identifier){
+    if(!image){
+        return false;
+    }
+
+    try{
+        var originalWidth = image.width;
+        var originalHeight = image.height;
+
+        if(typeof width === "number"){
+            image.width = width;
+        }
+        if(typeof height === "number"){
+            image.height = height;
+        }
+
+        image.draw(x, y);
+
+        if(typeof originalWidth === "number"){
+            image.width = originalWidth;
+        }
+        if(typeof originalHeight === "number"){
+            image.height = originalHeight;
+        }
+
+        return true;
+    }catch(e){
+        if(identifier){
+            logTileOnce("drawErr:" + identifier, "failed to draw image " + identifier + ": " + (e && e.message? e.message : String(e)));
+        }
+        return false;
+    }
+}
+
+function normaliseTileName(name){
+    if(typeof name !== "string"){
+        return null;
+    }
+
+    if(name === "." || name === ".."){
+        return null;
+    }
+
+    if(name.slice(-1) === "/"){
+        return null;
+    }
+
+    var lower = name.toLowerCase();
+    if(lower.slice(-4) !== ".png"){
+        return null;
+    }
+
+    var parts = name.split(/[\\/]/);
+    var finalName = parts[parts.length - 1];
+    if(!finalName){
+        return null;
+    }
+
+    return finalName;
+}
+
+function collectTileEntries(entry, target, depth){
+    if(entry === null || entry === undefined || depth > 4){
+        return;
+    }
+
+    if(typeof entry === "string"){
+        var norm = normaliseTileName(entry);
+        if(norm && target.indexOf(norm) === -1){
+            target.push(norm);
+        }
+        return;
+    }
+
+    if(typeof entry !== "object"){
+        return;
+    }
+
+    if(typeof entry.name === "string"){
+        var direct = normaliseTileName(entry.name);
+        if(direct && target.indexOf(direct) === -1){
+            target.push(direct);
+        }
+    }
+
+    if(Array.isArray(entry)){
+        for(var i = 0; i < entry.length; i++){
+            collectTileEntries(entry[i], target, depth + 1);
+        }
+        return;
+    }
+
+    for(var key in entry){
+        if(key === "name"){
+            continue;
+        }
+        if(entry.hasOwnProperty ? entry.hasOwnProperty(key) : true){
+            collectTileEntries(entry[key], target, depth + 1);
+        }
+    }
+}
+
+function loadTileFilenames(path){
+    var results = [];
+
+    function fromSource(label, entries){
+        collectTileEntries(entries, results, 0);
+        logTileOnce("dir:" + label, "read " + path + " via " + label + " -> " + results.length + " png(s)");
+    }
+
+    if(typeof os !== "undefined" && os && typeof os.readdir === "function"){
+        try{
+            fromSource("os.readdir", os.readdir(path));
+        }catch(e){
+            logTileOnce("dirErr:os", "os.readdir failed for " + path + ": " + (e && e.message? e.message : String(e)));
+        }
+    }
+
+    if(results.length === 0 && typeof System !== "undefined" && typeof System.listDirectory === "function"){
+        try{
+            fromSource("System.listDirectory", System.listDirectory(path));
+        }catch(e){
+            logTileOnce("dirErr:sys", "System.listDirectory failed for " + path + ": " + (e && e.message? e.message : String(e)));
+        }
+    }
+
+    if(results.length === 0){
+        logTileOnce("noTiles:" + path, "No PNG tiles found under " + path);
+    }
+
+    return results;
+}
+
+const tile_dir = "Map/Tiles";
+var framelist = loadTileFilenames(tile_dir);
+
+framelist.sort(function(a, b){
+    var a_match = a.match(/(\d+)/);
+    var b_match = b.match(/(\d+)/);
+
+    if(a_match && b_match){
+        return parseInt(a_match[1], 10) - parseInt(b_match[1], 10);
+    }
+
+    return a.localeCompare(b);
+});
 
 var tilelist = [];
 var tilepaths = [];
 
+function loadTileImage(path, index){
+    try{
+        var img = new Image(path);
+        if(img && typeof img.width === "number" && typeof img.height === "number"){
+            logTileOnce("imgDim:" + path, "Loaded " + path + " (" + img.width + "x" + img.height + ")");
+        } else {
+            logTileOnce("imgLoad:" + path, "Loaded " + path);
+        }
+        return img;
+    }catch(e){
+        logTileOnce("imgErr:" + path, "Failed to load tile " + path + ": " + (e && e.message? e.message : String(e)));
+        return null;
+    }
+}
+
 // Load each of the sorted files as an image
 for (var i = 0; i < framelist.length; i++) {
-    var path = "Map/Tiles" + "/" + framelist[i];
-    tilepaths[i] = path;
-    try{
-        tilelist[i] = new Image(path);
-    }catch(e){
-        tilelist[i] = null;
-    }
+    var path = tile_dir + "/" + framelist[i];
+    tilepaths.push(path);
+    tilelist.push(loadTileImage(path, i));
 };
 
 // Ensure at least one placeholder entry so UI code has something to reference
@@ -60,6 +232,10 @@ if(tilepaths.length === 0){
     tilepaths.push("");
     tilelist.push(null);
 }
+
+cur_sprite = Math.min(cur_sprite, Math.max(0, tilelist.length - 1));
+
+logTileOnce("summary", "found " + framelist.length + " tile image(s) under " + tile_dir);
 
 function updateLevelEditorPads(){
     var pad = Pads.get();
@@ -94,7 +270,12 @@ function updateLevelEditorPads(){
 
     if(pad.justPressed(Pads.CROSS)){
         // store the file path (string) rather than the Image object so JSON is serializable
-        newMapTile(tilepaths[cur_sprite], new Vector2(square_x, square_y));
+        var selectedPath = tilepaths[cur_sprite];
+        if(selectedPath){
+            newMapTile(selectedPath, new Vector2(square_x, square_y));
+        }else{
+            logTileOnce("emptySelect", "tried to place tile with empty texture path (index " + cur_sprite + ")");
+        }
     };
 }
 
@@ -109,14 +290,22 @@ function levelEditor_create(){
         pixeloid_small.print(460.0,  45.0, "Triangle - Return", Color.new(128,128,128));
         pixeloid_small.print(460.0,  75.0, "D-Pad - Move", Color.new(128,128,128));
         pixeloid_small.print(460.0, 105.0, "R1/L1 - Change \nsprite", Color.new(128,128,128));
+        pixeloid_small.print(460.0, 135.0, "Cursor: " + square_x + "," + square_y, Color.new(96,96,96));
+        pixeloid_small.print(460.0, 165.0, "Tiles: " + level.length, Color.new(96,96,96));
+        if(tilepaths[cur_sprite]){
+            var label = tilepaths[cur_sprite].split("/").pop();
+            pixeloid_small.print(460.0, 195.0, "Sprite: " + label, Color.new(64,64,64));
+        }
 
         // Guard the preview draw in case tilelist[cur_sprite] is missing
         try{
-            if(tilelist[cur_sprite]){
-                Draw.rect(470.0, 250.0, 150.0, 150.0, tilelist[cur_sprite]);
-            } else {
-                // draw a placeholder box
-                Draw.rect(470.0, 250.0, 150.0, 150.0, Color.new(64,64,64));
+            var previewImage = tilelist[cur_sprite];
+            var previewKey = tilepaths[cur_sprite] || ("index:" + cur_sprite);
+            Draw.rect(470.0, 250.0, 150.0, 150.0, Color.new(64,64,64));
+            if(previewImage && isImageReady(previewImage, "preview:" + previewKey)){
+                drawImageScaled(previewImage, 470.0, 250.0, 150.0, 150.0, "preview:" + previewKey);
+            } else if(!previewImage){
+                logTileOnce("missingPreview:" + previewKey, "preview missing image for " + previewKey + ", drawing placeholder");
             }
         }catch(e){
             // If Draw or Image throws, draw a simple box to avoid native crashes
@@ -135,32 +324,43 @@ function levelEditor_create(){
                 if(tex_idx !== -1){
                     image = tilelist[tex_idx];
                 }
+            } else {
+                logTileOnce("missingPath:" + i, "tile #" + i + " missing texture path");
             }
 
             // Draw the tile's sprite, or a green square if the sprite is missing
             try{
-                if(image){
-                    Draw.rect(tile.tile.x*tile_ed_size, tile.tile.y*tile_ed_size, tile_ed_size, tile_ed_size, image);
-                }else{
-                    Draw.rect(tile.tile.x*tile_ed_size, tile.tile.y*tile_ed_size, tile_ed_size, tile_ed_size, Color.new(0,255,0));
+                var base_x = tile.tile.x*tile_ed_size;
+                var base_y = tile.tile.y*tile_ed_size;
+                Draw.rect(base_x, base_y, tile_ed_size, tile_ed_size, Color.new(0,255,0));
+                if(image && isImageReady(image, tex_path || ("tileIndex:" + i))){
+                    drawImageScaled(image, base_x, base_y, tile_ed_size, tile_ed_size, tex_path || ("tileIndex:" + i));
+                } else if(image){
+                    logTileOnce("notReady:" + (tex_path || i), "tile image not ready yet for " + (tex_path || ("index:" + i)));
+                } else {
+                    logTileOnce("missingImage:" + (tex_path || i), "missing tile image for " + (tex_path || ("index:" + i)));
                 }
             }catch(e){
                 // If the Draw call throws, render a fallback square to avoid crashing
-                Draw.rect(tile.tile.x*tile_ed_size, tile.tile.y*tile_ed_size, tile_ed_size, tile_ed_size, Color.new(0,255,0));
+                Draw.rect(tile.tile.x*tile_ed_size, tile.tile.y*tile_ed_size, tile_ed_size, tile_ed_size, Color.new(255,255,0));
             }
         };
 
         // Draw the currently selected tile at the cursor's position
         try{
             var cursor_img = tilelist[cur_sprite];
-            if(cursor_img){
-                Draw.rect(square_x*tile_ed_size, square_y*tile_ed_size, tile_ed_size, tile_ed_size, cursor_img);
-            } else {
-                Draw.rect(square_x*tile_ed_size, square_y*tile_ed_size, tile_ed_size, tile_ed_size, Color.new(255,0,0));
+            var cursorKey = tilepaths[cur_sprite] || ("cursor:" + cur_sprite);
+            var cursor_x = square_x*tile_ed_size;
+            var cursor_y = square_y*tile_ed_size;
+            Draw.rect(cursor_x, cursor_y, tile_ed_size, tile_ed_size, Color.new(255,0,0));
+            if(cursor_img && isImageReady(cursor_img, "cursor:" + cursorKey)){
+                drawImageScaled(cursor_img, cursor_x, cursor_y, tile_ed_size, tile_ed_size, "cursor:" + cursorKey);
+            } else if(!cursor_img){
+                logTileOnce("missingCursor:" + cursorKey, "cursor using placeholder for " + cursorKey);
             }
         }catch(e){
             // If the Draw call throws, render a fallback square to avoid crashing
-            Draw.rect(square_x*tile_ed_size, square_y*tile_ed_size, tile_ed_size, tile_ed_size, Color.new(255,0,0));
+            Draw.rect(square_x*tile_ed_size, square_y*tile_ed_size, tile_ed_size, tile_ed_size, Color.new(255,255,0));
         }
 
         if(pad.justPressed(Pads.START)){
