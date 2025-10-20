@@ -1,5 +1,4 @@
 
-*.elf
 ._main.js
 ._README.md
 Game/._loading.js
