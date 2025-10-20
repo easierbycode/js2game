@@ -15,23 +15,44 @@ var square_y = 0;
 var tile_ed_size = 10.0;
 var cur_sprite = 0;
 
+// Get a list of all files in the directory
 var framelist = [];
 try{
+    // Filter out directories and only get the file names
     framelist = os.readdir("Map/Tiles") || [];
+    framelist = framelist.filter(f => f.slice(-1) !== '/');
 }catch(e){
+    // Could be that the directory doesn't exist, which is fine
     framelist = [];
 }
+
+// Sort the files numerically based on the name
+// (e.g., "Tile_1.png", "Tile_2.png", ... "Tile_10.png")
+try{
+    framelist.sort(function(a,b){
+        var a_num = parseInt(a.split("_")[1].split(".")[0]);
+        var b_num = parseInt(b.split("_")[1].split(".")[0]);
+        return a_num - b_num;
+    });
+}catch(e){
+    // If the files are not named correctly this will probably fail
+    // In that case, just sort alphabetically
+    framelist.sort();
+}
+
+
 var tilelist = [];
 var tilepaths = [];
 
+// Load each of the sorted files as an image
 for (var i = 0; i < framelist.length; i++) {
-    var path = "Map/Tiles" + "/" + "Tile_" + (i+1) + ".png";
+    var path = "Map/Tiles" + "/" + framelist[i];
+    tilepaths[i] = path;
     try{
         tilelist[i] = new Image(path);
     }catch(e){
         tilelist[i] = null;
     }
-    tilepaths[i] = path;
 };
 
 // Ensure at least one placeholder entry so UI code has something to reference
@@ -102,10 +123,13 @@ function levelEditor_create(){
             Draw.rect(470.0, 250.0, 150.0, 150.0, Color.new(64,64,64));
         }
 
+        // Draw all of the tiles that have been placed so far
         for (var i = 0; i < level.length; i++) {
             var tile = level[i];
             var tex_path = tile.tex;
             var image = null;
+
+            // Find the pre-loaded image that corresponds to the tile's texture path
             if(tex_path){
                 var tex_idx = tilepaths.indexOf(tex_path);
                 if(tex_idx !== -1){
@@ -113,17 +137,29 @@ function levelEditor_create(){
                 }
             }
 
-            if(image){
-                Draw.rect(tile.tile.x*tile_ed_size, tile.tile.y*tile_ed_size, tile_ed_size, tile_ed_size, image);
-            }else{
+            // Draw the tile's sprite, or a green square if the sprite is missing
+            try{
+                if(image){
+                    Draw.rect(tile.tile.x*tile_ed_size, tile.tile.y*tile_ed_size, tile_ed_size, tile_ed_size, image);
+                }else{
+                    Draw.rect(tile.tile.x*tile_ed_size, tile.tile.y*tile_ed_size, tile_ed_size, tile_ed_size, Color.new(0,255,0));
+                }
+            }catch(e){
+                // If the Draw call throws, render a fallback square to avoid crashing
                 Draw.rect(tile.tile.x*tile_ed_size, tile.tile.y*tile_ed_size, tile_ed_size, tile_ed_size, Color.new(0,255,0));
             }
         };
 
-        var cursor_img = tilelist[cur_sprite];
-        if(cursor_img){
-            Draw.rect(square_x*tile_ed_size, square_y*tile_ed_size, tile_ed_size, tile_ed_size, cursor_img);
-        } else {
+        // Draw the currently selected tile at the cursor's position
+        try{
+            var cursor_img = tilelist[cur_sprite];
+            if(cursor_img){
+                Draw.rect(square_x*tile_ed_size, square_y*tile_ed_size, tile_ed_size, tile_ed_size, cursor_img);
+            } else {
+                Draw.rect(square_x*tile_ed_size, square_y*tile_ed_size, tile_ed_size, tile_ed_size, Color.new(255,0,0));
+            }
+        }catch(e){
+            // If the Draw call throws, render a fallback square to avoid crashing
             Draw.rect(square_x*tile_ed_size, square_y*tile_ed_size, tile_ed_size, tile_ed_size, Color.new(255,0,0));
         }
 
